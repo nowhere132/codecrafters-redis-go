@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 )
@@ -25,12 +26,16 @@ func main() {
 	}
 
 	buf := make([]byte, 1024)
-	_, err = conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading buffer: ", err.Error())
-		os.Exit(1)
+	for {
+		_, err := conn.Read(buf)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			fmt.Println("Error reading buffer: ", err.Error())
+			os.Exit(1)
+		}
+		fmt.Println("Received buffer: ", string(buf)) //*5\r\n$5hello\r\n$4from\r\n
+		conn.Write([]byte("+PONG\r\n"))
 	}
-
-	fmt.Println("Received buffer: ", string(buf)) //*5\r\n$5hello\r\n$4from\r\n
-	conn.Write([]byte("+PONG\r\n"))
 }
