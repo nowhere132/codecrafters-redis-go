@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,7 +15,7 @@ func main() {
 
 	// Uncomment this block to pass the first stage
 
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
+	l, err := net.Listen("tcp", "0.0.0.0:6380")
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
@@ -33,17 +35,38 @@ func main() {
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	buf := make([]byte, 1024)
 	for {
-		_, err := conn.Read(buf)
-		if err == io.EOF {
+		values, err := DecodeRESP(bufio.NewReader(conn))
+		if errors.Is(err, io.EOF) {
 			break
 		}
+
 		if err != nil {
-			fmt.Println("Error reading buffer: ", err.Error())
-			os.Exit(1)
+			fmt.Println("error decoding RESP:", err.Error())
+			return
 		}
-		fmt.Println("Received buffer: ", string(buf)) //*5\r\n$5hello\r\n$4from\r\n
-		conn.Write([]byte("+PONG\r\n"))
+
+		if values.t != Array {
+			fmt.Printf("expected array, got first byte %c\n", values.t)
+			return
+		}
+		command := values.Array()[0].String()
+
+		switch command {
+		case "ping":
+			conn.Write([]byte("+PONG\r\n"))
+		case "echo":
+			args := values.Array()[1:]
+			if len(args) != 1 {
+				fmt.Printf("expected bulk string, got %v\n", args)
+				return
+			}
+			bulkString := args[0].String()
+
+			resp := fmt.Sprintf("$%d\r\n%s\r\n", len(bulkString), bulkString)
+			conn.Write([]byte(resp))
+		default:
+			conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
+		}
 	}
 }
