@@ -21,6 +21,25 @@ type Value struct {
 	children []*Value
 }
 
+func (v *Value) EncodeRESP() string {
+	switch v.t {
+	case SimpleString:
+		return fmt.Sprintf("+%s\r\n", v.String())
+	case BulkString:
+		s := v.String()
+		return fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)
+	case Array:
+		children := v.Array()
+		s := fmt.Sprintf("*%d\r\n", len(children))
+		for _, child := range children {
+			s += child.EncodeRESP()
+		}
+		return s
+	default:
+		return ""
+	}
+}
+
 func DecodeRESP(byteStream *bufio.Reader) (*Value, error) {
 	typeByte, err := byteStream.ReadByte()
 	if err != nil {

@@ -21,6 +21,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	store := NewStorage()
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -28,11 +30,11 @@ func main() {
 			os.Exit(1)
 		}
 
-		go handleConnection(conn)
+		go handleConnection(conn, store)
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, store *Storage) {
 	defer conn.Close()
 
 	for {
@@ -57,14 +59,36 @@ func handleConnection(conn net.Conn) {
 			conn.Write([]byte("+PONG\r\n"))
 		case "echo":
 			args := values.Array()[1:]
-			if len(args) != 1 {
+			if len(args) < 1 {
+				fmt.Printf("message is required for command ECHO")
+				return
+			}
+			if len(args) < 1 || args[0].t != BulkString {
 				fmt.Printf("expected bulk string, got %v\n", args)
 				return
 			}
-			bulkString := args[0].String()
+			conn.Write([]byte(args[0].EncodeRESP()))
+		case "get":
+			args := values.Array()[1:]
+			if len(args) < 1 {
+				fmt.Printf("key is required for command GET")
+				return
+			}
+			key := args[0].String()
 
-			resp := fmt.Sprintf("$%d\r\n%s\r\n", len(bulkString), bulkString)
-			conn.Write([]byte(resp))
+			val := store.Get(key)
+			conn.Write([]byte(val))
+		case "set":
+			args := values.Array()[1:]
+			if len(args) < 1 {
+				fmt.Printf("key and value are required for command SET")
+				return
+			}
+			key := args[0].String()
+			val := args[1].String()
+
+			store.Set(key, val)
+			conn.Write([]byte("+OK\r\n"))
 		default:
 			conn.Write([]byte("-ERR unknown command '" + command + "'\r\n"))
 		}
