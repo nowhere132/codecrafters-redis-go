@@ -77,10 +77,10 @@ func handleConnection(conn net.Conn, store *Storage) {
 			key := args[0].String()
 
 			val := store.Get(key)
-			conn.Write([]byte(val))
+			conn.Write([]byte(fmt.Sprintf("+%s\r\n", val)))
 		case "set":
 			args := values.Array()[1:]
-			if len(args) < 1 {
+			if len(args) < 2 {
 				fmt.Printf("key and value are required for command SET")
 				return
 			}
